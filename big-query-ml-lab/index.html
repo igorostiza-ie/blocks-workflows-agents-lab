@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predicting Visitor Purchases with BigQuery ML</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, #0066cc 0%, #0044aa 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            color: #0066cc;
+            font-size: 1.8rem;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 3px solid #0066cc;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            color: #0066cc;
+            font-size: 1.2rem;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        code {
+            padding: 20px;
+            border-radius: 8px;
+            display: block;
+            margin: 20px 0;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            line-height: 1.8;
+            border: 2px solid #0066cc;
+            box-shadow: 0 2px 8px rgba(0, 102, 204, 0.2);
+            white-space: pre;
+            tab-size: 2;
+            -moz-tab-size: 2;
+            word-break: normal;
+            word-wrap: normal;
+        }
+
+        code.hljs {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+
+        thead {
+            background: #0066cc;
+            color: white;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        strong {
+            color: #0066cc;
+        }
+
+        ul, ol {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .deerflow {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #0066cc;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            z-index: 999;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+            .container {
+                padding: 20px;
+            }
+            code {
+                font-size: 0.8rem;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Predicting Visitor Purchases with BigQuery ML</h1>
+    </header>
+
+    <div class="container">
+        <h2>Task 1. Explore ecommerce data</h2>
+
+        <h3>Scenario</h3>
+        <p>Your data analyst team exported the Google Analytics logs for an ecommerce website into BigQuery and created a new table of all the raw ecommerce visitor session data for you to explore. Using this data, you'll try to answer a few questions.</p>
+
+        <h3>Question: Out of the total visitors who visited our website, what % made a purchase?</h3>
+
+        <p>Click the query Editor.</p>
+        <p>Add the following to the New Query field:</p>
+
+        <code>#standardSQL
+WITH visitors AS(
+	SELECT
+		COUNT(DISTINCT fullVisitorId) AS total_visitors
+	FROM `data-to-insights.ecommerce.web_analytics`
+),
+
+purchasers AS(
+	SELECT
+		COUNT(DISTINCT fullVisitorId) AS total_purchasers
+	FROM `data-to-insights.ecommerce.web_analytics`
+	WHERE totals.transactions IS NOT NULL
+)
+
+SELECT
+	total_visitors,
+	total_purchasers,
+	total_purchasers / total_visitors AS conversion_rate
+FROM visitors, purchasers</code>
+
+        <p>Click Run.</p>
+        <p><strong>The result: 2.69%</strong></p>
+
+        <h3>Question: What are the top 5 selling products?</h3>
+
+        <p>Add the following query in the query EDITOR, and then click Run:</p>
+
+        <code>SELECT
+	p.v2ProductName,
+	p.v2ProductCategory,
+	SUM(p.productQuantity) AS units_sold,
+	ROUND(SUM(p.localProductRevenue/1000000),2) AS revenue
+FROM `data-to-insights.ecommerce.web_analytics`,
+UNNEST(hits) AS h,
+UNNEST(h.product) AS p
+GROUP BY 1, 2
+ORDER BY revenue DESC
+LIMIT 5;</code>
+
+        <p><strong>The result:</strong></p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Row</th>
+                    <th>v2ProductName</th>
+                    <th>v2ProductCategory</th>
+                    <th>units_sold</th>
+                    <th>revenue</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td>Nest® Learning Thermostat 3rd Gen-USA - Stainless Steel</td><td>Nest-USA</td><td>17651</td><td>870976.95</td></tr>
+                <tr><td>2</td><td>Nest® Cam Outdoor Security Camera - USA</td><td>Nest-USA</td><td>16930</td><td>684034.55</td></tr>
+                <tr><td>3</td><td>Nest® Cam Indoor Security Camera - USA</td><td>Nest-USA</td><td>14155</td><td>548104.47</td></tr>
+                <tr><td>4</td><td>Nest® Protect Smoke + CO White Wired Alarm-USA</td><td>Nest-USA</td><td>6394</td><td>178937.6</td></tr>
+                <tr><td>5</td><td>Nest® Protect Smoke + CO White Battery Alarm-USA</td><td>Nest-USA</td><td>6340</td><td>178572.4</td></tr>
+            </tbody>
+        </table>
+
+        <h3>Question: How many visitors bought on subsequent visits to the website?</h3>
+
+        <p>Run the following query to find out:</p>
+
+        <code># visitors who bought on a return visit (could have bought on first as well
+WITH all_visitor_stats AS (
+SELECT
+	fullvisitorid, # 741,721 unique visitors
+	IF(COUNTIF(totals.transactions > 0 AND totals.newVisits IS NULL) > 0, 1, 0) AS will_buy_on_return_visit
+	FROM `data-to-insights.ecommerce.web_analytics`
+	GROUP BY fullvisitorid
+)
+
+SELECT
+	COUNT(DISTINCT fullvisitorid) AS total_visitors,
+	will_buy_on_return_visit
+FROM all_visitor_stats
+GROUP BY will_buy_on_return_visit</code>
+
+        <p><strong>The results:</strong></p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Row</th>
+                    <th>total_visitors</th>
+                    <th>will_buy_on_return_visit</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td>729848</td><td>0</td></tr>
+                <tr><td>2</td><td>11873</td><td>1</td></tr>
+            </tbody>
+        </table>
+
+        <p>Analyzing the results, you can see that (11873 / 729848) = <strong>1.6% of total visitors will return and purchase</strong> from the website. This includes the subset of visitors who bought on their very first session and then came back and bought again.</p>
+
+        <p>This behavior is very common for luxury goods where significant up-front research and comparison is required by the customer before deciding (think car purchases) but also true to a lesser extent for the merchandise on this site (t-shirts, accessories, etc).</p>
+
+        <p>In the world of online marketing, identifying and marketing to these future customers based on the characteristics of their first visit will increase conversion rates and reduce the outflow to competitor sites.</p>
+
+        <h2>Task 2. Select features and create your training dataset</h2>
+
+        <p>Now you will create a Machine Learning model in BigQuery to predict whether or not a new user is likely to purchase in the future. Identifying these high-value users can help your marketing team target them with special promotions and ad campaigns.</p>
+
+        <p>Google Analytics captures a wide variety of dimensions and measures about a user's visit on this ecommerce website. Browse the complete list of fields in the [UA] BigQuery Export schema Guide and then preview the demo dataset to find useful features that will help a machine learning model understand the relationship between data about a visitor's first time on your website and whether they will return and make a purchase.</p>
+
+        <p>Your team decides to test whether these two fields are good inputs for your classification model:</p>
+        <ul>
+            <li><strong>totals.bounces</strong> (whether the visitor left the website immediately)</li>
+            <li><strong>totals.timeOnSite</strong> (how long the visitor was on our website)</li>
+        </ul>
+
+        <p>Machine learning is only as good as the training data that is fed into it. If there isn't enough information for the model to determine and learn the relationship between your input features and your label (in this case, whether the visitor bought in the future) then you will not have an accurate model. While training a model on just these two fields is a start, you will see if they're good enough to produce an accurate model.</p>
+
+        <p>In the query EDITOR, add the following query and then click Run:</p>
+
+        <code>SELECT
+	* EXCEPT(fullVisitorId)
+FROM
+	# features
+	(SELECT
+		fullVisitorId,
+		IFNULL(totals.bounces, 0) AS bounces,
+		IFNULL(totals.timeOnSite, 0) AS time_on_site
+	FROM
+		`data-to-insights.ecommerce.web_analytics`
+	WHERE
+		totals.newVisits = 1)
+	JOIN
+	(SELECT
+		fullvisitorid,
+		IF(COUNTIF(totals.transactions > 0 AND totals.newVisits IS NULL) > 0, 1, 0) AS will_buy_on_return_visit
+	FROM
+		`data-to-insights.ecommerce.web_analytics`
+	GROUP BY fullvisitorid)
+	USING (fullVisitorId)
+ORDER BY time_on_site DESC
+LIMIT 10;</code>
+
+        <p><strong>Results:</strong></p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Row</th>
+                    <th>bounces</th>
+                    <th>time_on_site</th>
+                    <th>will_buy_on_return_visit</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td>0</td><td>15047</td><td>0</td></tr>
+                <tr><td>2</td><td>0</td><td>12136</td><td>0</td></tr>
+                <tr><td>3</td><td>0</td><td>11201</td><td>0</td></tr>
+                <tr><td>4</td><td>0</td><td>10046</td><td>0</td></tr>
+                <tr><td>5</td><td>0</td><td>9974</td><td>0</td></tr>
+                <tr><td>6</td><td>0</td><td>9564</td><td>0</td></tr>
+                <tr><td>7</td><td>0</td><td>9520</td><td>0</td></tr>
+                <tr><td>8</td><td>0</td><td>9275</td><td>1</td></tr>
+                <tr><td>9</td><td>0</td><td>9138</td><td>0</td></tr>
+                <tr><td>10</td><td>0</td><td>8872</td><td>0</td></tr>
+            </tbody>
+        </table>
+
+        <h3>Discussion</h3>
+
+        <p><strong>will_buy_on_return_visit is not known after the first visit.</strong> Again, you're predicting for a subset of users who returned to your website and purchased. Since you don't know the future at prediction time, you cannot say with certainty whether a new visitor comes back and purchases. The value of building a ML model is to get the probability of future purchase based on the data gleaned about their first session.</p>
+
+        <h3>Question: Looking at the initial data results, do you think time_on_site and bounces will be a good indicator of whether the user will return and purchase or not?</h3>
+
+        <p><strong>Answer:</strong> It's often too early to tell before training and evaluating the model, but at first glance out of the top 10 time_on_site, only 1 customer returned to buy, which isn't very promising. Let's see how well the model does.</p>
+
+        <h2>Task 3. Create a BigQuery dataset to store models</h2>
+
+        <p>Next, create a new BigQuery dataset which will also store your ML models.</p>
+
+        <p>In the left pane, click on your project name, and then click on the View action icon (three dots) and select Create Dataset.</p>
+
+        <p>In the Create Dataset dialog:</p>
+        <ul>
+            <li>For Dataset ID, type <strong>ecommerce</strong>.</li>
+            <li>Leave the other values at their defaults.</li>
+            <li>Click Create dataset.</li>
+        </ul>
+
+        <h2>Task 4. Select a BigQuery ML model type and specify options</h2>
+
+        <p>Now that you have your initial features selected, you are now ready to create your first ML model in BigQuery.</p>
+
+        <p>There are the two model types to choose from:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Model</th>
+                    <th>Model Type</th>
+                    <th>Label Data type</th>
+                    <th>Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Forecasting</td><td>linear_reg</td><td>Numeric value (typically an integer or floating point)</td><td>Forecast sales figures for next year given historical sales data.</td></tr>
+                <tr><td>Classification</td><td>logistic_reg</td><td>0 or 1 for binary classification</td><td>Classify an email as spam or not spam given the context.</td></tr>
+            </tbody>
+        </table>
+
+        <p><strong>Note:</strong> There are many additional model types used in Machine Learning (like Neural Networks and decision trees) and available using libraries like TensorFlow.</p>
+
+        <p>Enter the following query to create a model and specify model options:</p>
+
+        <code>CREATE OR REPLACE MODEL `ecommerce.classification_model`
+OPTIONS
+(
+	model_type='logistic_reg',
+	labels = ['will_buy_on_return_visit']
+)
+AS
+
+#standardSQL
+SELECT
+	* EXCEPT(fullVisitorId)
+FROM
+	# features
+	(SELECT
+		fullVisitorId,
+		IFNULL(totals.bounces, 0) AS bounces,
+		IFNULL(totals.timeOnSite, 0) AS time_on_site
+	FROM
+		`data-to-insights.ecommerce.web_analytics`
+	WHERE
+		totals.newVisits = 1
+		AND date BETWEEN '20160801' AND '20170430') # train on first 9 months
+	JOIN
+	(SELECT
+		fullvisitorid,
+		IF(COUNTIF(totals.transactions > 0 AND totals.newVisits IS NULL) > 0, 1, 0) AS will_buy_on_return_visit
+	FROM
+		`data-to-insights.ecommerce.web_analytics`
+	GROUP BY fullvisitorid)
+	USING (fullVisitorId)
+;</code>
+
+        <p>Next, click Run to train your model.</p>
+
+        <p>Wait for the model to train (5 - 10 minutes).</p>
+
+        <p><strong>Note:</strong> You cannot feed all of your available data to the model during training since you need to save some unseen data points for model evaluation and testing. To accomplish this, add a WHERE clause condition is being used to filter and train on only the first 9 months of session data in your 12 month dataset.</p>
+
+        <p>After your model is trained, you will see the message "This statement created a new model named qwiklabs-gcp-xxxxxxxxx:ecommerce.classification_model".</p>
+
+        <p>Click Go to model.</p>
+
+        <p>Look inside the ecommerce dataset and confirm classification_model now appears.</p>
+
+        <p>Next, you will evaluate the performance of the model against new unseen evaluation data.</p>
+
+        <h2>Task 5. Evaluate classification model performance</h2>
+
+        <h3>Select your performance criteria</h3>
+
+        <p>For classification problems in ML, you want to minimize the False Positive Rate (predict that the user will return and purchase and they don't) and maximize the True Positive Rate (predict that the user will return and purchase and they do).</p>
+
+        <p>This relationship is visualized with a ROC (Receiver Operating Characteristic) curve like the one shown here, where you try to maximize the area under the curve or AUC:</p>
+
+        <p><strong>In BigQuery ML,</strong> roc_auc is simply a queryable field when evaluating your trained ML model.</p>
+
+        <p>Now that training is complete, you can evaluate how well the model performs by running this query using ML.EVALUATE:</p>
+
+        <code>SELECT
+	roc_auc,
+	CASE
+		WHEN roc_auc > .9 THEN 'good'
+		WHEN roc_auc > .8 THEN 'fair'
+		WHEN roc_auc > .7 THEN 'not great'
+		ELSE 'poor'
+	END AS model_quality
+FROM
+	ML.EVALUATE(MODEL ecommerce.classification_model, (
+
+	SELECT
+		* EXCEPT(fullVisitorId)
+	FROM
+		# features
+		(SELECT
+			fullVisitorId,
+			IFNULL(totals.bounces, 0) AS bounces,
+			IFNULL(totals.timeOnSite, 0) AS time_on_site
+		FROM
+			`data-to-insights.ecommerce.web_analytics`
+		WHERE
+			totals.newVisits = 1
+			AND date BETWEEN '20170501' AND '20170630') # eval on 2 months
+		JOIN
+		(SELECT
+			fullvisitorid,
+			IF(COUNTIF(totals.transactions > 0 AND totals.newVisits IS NULL) > 0, 1, 0) AS will_buy_on_return_visit
+		FROM
+			`data-to-insights.ecommerce.web_analytics`
+		GROUP BY fullvisitorid)
+		USING (fullVisitorId)
+
+	));</code>
+
+        <p><strong>You should see the following result:</strong></p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Row</th>
+                    <th>roc_auc</th>
+                    <th>model_quality</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td>0.724588</td><td>not great</td></tr>
+            </tbody>
+        </table>
+
+        <p>After evaluating your model you get a roc_auc of 0.72, which shows that the model has not great predictive power. Since the goal is to get the area under the curve as close to 1.0 as possible, there is room for improvement.</p>
+
+        <h2>Task 6. Improve model performance with feature engineering</h2>
+
+        <p>As was hinted at earlier, there are many more features in the dataset that may help the model better understand the relationship between a visitor's first session and the likelihood that they will purchase on a subsequent visit.</p>
+
+        <p>Add some new features and create a second machine learning model called <strong>classification_model_2</strong>:</p>
+
+        <ul>
+            <li>How far the visitor got in the checkout process on their first visit</li>
+            <li>Where the visitor came from (traffic source: organic search, referring site etc.)</li>
+            <li>Device category (mobile, tablet, desktop)</li>
+            <li>Geographic information (country)</li>
+        </ul>
+
+        <p>Create this second model by running the below query:</p>
+
+        <code>CREATE OR REPLACE MODEL `ecommerce.classification_model_2`
+OPTIONS
+	(model_type='logistic_reg', labels = ['will_buy_on_return_visit']) AS
+
+WITH all_visitor_stats AS (
+	SELECT
+		fullvisitorid,
+		IF(COUNTIF(totals.transactions > 0 AND totals.newVisits IS NULL) > 0, 1, 0) AS will_buy_on_return_visit
+	FROM `data-to-insights.ecommerce.web_analytics`
+	GROUP BY fullvisitorid
+)
+
+# add in new features
+SELECT * EXCEPT(unique_session_id) FROM (
+	SELECT
+		CONCAT(fullvisitorid, CAST(visitId AS STRING)) AS unique_session_id,
+		# labels
+		will_buy_on_return_visit,
+		MAX(CAST(h.eCommerceAction.action_type AS INT64)) AS latest_ecommerce_progress,
+		# behavior on the site
+		IFNULL(totals.bounces, 0) AS bounces,
+		IFNULL(totals.timeOnSite, 0) AS time_on_site,
+		totals.pageviews,
+		# where the visitor came from
+		trafficSource.source,
+		trafficSource.medium,
+		channelGrouping,
+		# mobile or desktop
+		device.deviceCategory,
+		# geographic
+		IFNULL(geoNetwork.country, "") AS country
+	FROM `data-to-insights.ecommerce.web_analytics`,
+		UNNEST(hits) AS h
+	JOIN all_visitor_stats USING(fullvisitorid)
+	WHERE 1=1
+		# only predict for new visits
+		AND totals.newVisits = 1
+		AND date BETWEEN '20160801' AND '20170430' # train 9 months
+	GROUP BY
+		unique_session_id,
+		will_buy_on_return_visit,
+		bounces,
+		time_on_site,
+		totals.pageviews,
+		trafficSource.source,
+		trafficSource.medium,
+		channelGrouping,
+		device.deviceCategory,
+		country
+);</code>
+
+        <p><strong>Note:</strong> You are still training on the same first 9 months of data, even with this new model. It's important to have the same training dataset so you can be certain a better model output is attributable to better input features and not new or different training data.</p>
+
+        <p><strong>Feature Engineering Details:</strong> A key new feature that was added to the training dataset query is the maximum checkout progress each visitor reached in their session, which is recorded in the field hits.eCommerceAction.action_type. If you search for that field in the field definitions you will see the field mapping of 6 = Completed Purchase. As an aside, the web analytics dataset has nested and repeated fields like ARRAYS which need to be broken apart into separate rows in your dataset. This is accomplished by using the UNNEST() function, which you can see in the above query.</p>
+
+        <p>Wait for the new model to finish training (5-10 minutes).</p>
+
+        <p>Evaluate this new model to see if there is better predictive power by running the below query:</p>
+
+        <code>SELECT
+  roc_auc,
+  CASE
+    WHEN roc_auc > .9 THEN 'good'
+    WHEN roc_auc > .8 THEN 'fair'
+    WHEN roc_auc > .7 THEN 'not great'
+  ELSE 'poor' END AS model_quality
+FROM
+  ML.EVALUATE(MODEL ecommerce.classification_model_2,  (
+
+WITH all_visitor_stats AS (
+SELECT
+  fullvisitorid,
+  IF(COUNTIF(totals.transactions > 0 AND totals.newVisits IS NULL) > 0, 1, 0) AS will_buy_on_return_visit
+  FROM `data-to-insights.ecommerce.web_analytics`
+  GROUP BY fullvisitorid
+)
+
+# add in new features
+SELECT * EXCEPT(unique_session_id) FROM (
+
+  SELECT
+      CONCAT(fullvisitorid, CAST(visitId AS STRING)) AS unique_session_id,
+
+      # labels
+      will_buy_on_return_visit,
+
+      MAX(CAST(h.eCommerceAction.action_type AS INT64)) AS latest_ecommerce_progress,
+
+      # behavior on the site
+      IFNULL(totals.bounces, 0) AS bounces,
+      IFNULL(totals.timeOnSite, 0) AS time_on_site,
+      totals.pageviews,
+
+      # where the visitor came from
+      trafficSource.source,
+      trafficSource.medium,
+      channelGrouping,
+
+      # mobile or desktop
+      device.deviceCategory,
+
+      # geographic
+      IFNULL(geoNetwork.country, "") AS country
+
+  FROM `data-to-insights.ecommerce.web_analytics`,
+     UNNEST(hits) AS h
+
+    JOIN all_visitor_stats USING(fullvisitorid)
+
+  WHERE 1=1
+    # only predict for new visits
+    AND totals.newVisits = 1
+    AND date BETWEEN '20170501' AND '20170630' # eval 2 months
+
+  GROUP BY
+  unique_session_id,
+  will_buy_on_return_visit,
+  bounces,
+  time_on_site,
+  totals.pageviews,
+  trafficSource.source,
+  trafficSource.medium,
+  channelGrouping,
+  device.deviceCategory,
+  country
+)
+));</code>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Row</th>
+                    <th>roc_auc</th>
+                    <th>model_quality</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td>0.910382</td><td>good</td></tr>
+            </tbody>
+        </table>
+
+        <p>With this new model you now get a roc_auc of <strong>0.91 which is significantly better</strong> than the first model.</p>
+
+        <p>Now that you have a trained model, time to make some predictions.</p>
+
+        <h2>Task 7. Predict which new visitors will come back and purchase</h2>
+
+        <p>Next you will write a query to predict which new visitors will come back and make a purchase.</p>
+
+        <p>Run the prediction query below which uses the improved classification model to predict the probability that a first-time visitor to the Google Merchandise Store will make a purchase in a later visit:</p>
+
+        <code>SELECT
+	*
+FROM
+	ml.PREDICT(MODEL `ecommerce.classification_model_2`, (
+
+	WITH all_visitor_stats AS (
+		SELECT
+			fullvisitorid,
+			IF(COUNTIF(totals.transactions > 0 AND totals.newVisits IS NULL) > 0, 1, 0) AS will_buy_on_return_visit
+		FROM `data-to-insights.ecommerce.web_analytics`
+		GROUP BY fullvisitorid
+	)
+
+	SELECT
+		CONCAT(fullvisitorid, '-',CAST(visitId AS STRING)) AS unique_session_id,
+		# labels
+		will_buy_on_return_visit,
+		MAX(CAST(h.eCommerceAction.action_type AS INT64)) AS latest_ecommerce_progress,
+		# behavior on the site
+		IFNULL(totals.bounces, 0) AS bounces,
+		IFNULL(totals.timeOnSite, 0) AS time_on_site,
+		totals.pageviews,
+		# where the visitor came from
+		trafficSource.source,
+		trafficSource.medium,
+		channelGrouping,
+		# mobile or desktop
+		device.deviceCategory,
+		# geographic
+		IFNULL(geoNetwork.country, "") AS country
+	FROM `data-to-insights.ecommerce.web_analytics`,
+		UNNEST(hits) AS h
+	JOIN all_visitor_stats USING(fullvisitorid)
+	WHERE
+		# only predict for new visits
+		totals.newVisits = 1
+		AND date BETWEEN '20170701' AND '20170801' # test 1 month
+	GROUP BY
+		unique_session_id,
+		will_buy_on_return_visit,
+		bounces,
+		time_on_site,
+		totals.pageviews,
+		trafficSource.source,
+		trafficSource.medium,
+		channelGrouping,
+		device.deviceCategory,
+		country
+	)
+)
+
+ORDER BY
+	predicted_will_buy_on_return_visit DESC;</code>
+
+        <p>The predictions are made in the last 1 month (out of 12 months) of the dataset.</p>
+
+        <p>Your model will now output the predictions it has for those July 2017 ecommerce sessions. You can see three newly added fields:</p>
+
+        <ul>
+            <li><strong>predicted_will_buy_on_return_visit:</strong> whether the model thinks the visitor will buy later (1 = yes)</li>
+            <li><strong>predicted_will_buy_on_return_visit_probs.label:</strong> the binary classifier for yes / no</li>
+            <li><strong>predicted_will_buy_on_return_visit_probs.prob:</strong> the confidence the model has in it's prediction (1 = 100%)</li>
+        </ul>
+
+        <h3>Results</h3>
+
+        <ul>
+            <li>Of the top 6% of first-time visitors (sorted in decreasing order of predicted probability), <strong>more than 6% make a purchase in a later visit</strong>.</li>
+            <li>These users represent <strong>nearly 50% of all first-time visitors who make a purchase in a later visit</strong>.</li>
+            <li>Overall, <strong>only 0.7% of first-time visitors make a purchase in a later visit</strong>.</li>
+            <li><strong>Targeting the top 6% of first-time increases marketing ROI by 9x</strong> vs targeting them all!</li>
+        </ul>
+
+        <h3>Additional information</h3>
+
+        <p>roc_auc is just one of the performance metrics available during model evaluation. Also available are accuracy, precision, and recall. Knowing which performance metric to rely on is highly dependent on what your overall objective or goal is.</p>
+
+        <p><strong>Congratulations!</strong> You created a machine learning model using just SQL.</p>
+
+        <h2>Challenge</h2>
+
+        <h3>Summary</h3>
+
+        <p>In the previous two tasks you saw the power of feature engineering at work in improving our models performance. However, we still may be able to improve our performance by exploring other model types. For classification problems, BigQuery ML also supports the following model types:</p>
+
+        <ul>
+            <li>Deep Neural Networks.</li>
+            <li>Boosted Decision Trees (XGBoost).</li>
+            <li>AutoML Tables Models.</li>
+            <li>Importing Custom TensorFlow Models.</li>
+        </ul>
+
+        <h3>Task</h3>
+
+        <p>Though our linear classification (logistic regression) model performed well after feature engineering, it may be too simple of a model to fully capture the relationship between the features and the label. Using the same dataset and labels as you did in Task 6 to create the model ecommerce.classification_model_2, your challenge is to create a XGBoost Classifier.</p>
+
+        <p><strong>Note:</strong> Hint: Use following options for Boosted_Tree_Classifier:</p>
+        <ol>
+            <li>L2_reg = 0.1</li>
+            <li>num_parallel_tree = 8</li>
+            <li>max_tree_depth = 10</li>
+        </ol>
+
+        <p>You may need to look at the documentation linked above to see the exact syntax. The model will take around 7 minutes to train. The solution can be found in the solution section below if you need help writing the query.</p>
+
+        <h3>Solution</h3>
+
+        <p>This is the solution that you require in order to create a XGBoost Classifier:</p>
+
+        <code>CREATE OR REPLACE MODEL `ecommerce.classification_model_3`
+OPTIONS
+	(model_type='BOOSTED_TREE_CLASSIFIER', l2_reg = 0.1, num_parallel_tree = 8, max_tree_depth = 10,
+		labels = ['will_buy_on_return_visit']) AS
+
+WITH all_visitor_stats AS (
+	SELECT
+		fullvisitorid,
+		IF(COUNTIF(totals.transactions > 0 AND totals.newVisits IS NULL) > 0, 1, 0) AS will_buy_on_return_visit
+	FROM `data-to-insights.ecommerce.web_analytics`
+	GROUP BY fullvisitorid
+)
+
+# add in new features
+SELECT * EXCEPT(unique_session_id) FROM (
+	SELECT
+		CONCAT(fullvisitorid, CAST(visitId AS STRING)) AS unique_session_id,
+		# labels
+		will_buy_on_return_visit,
+		MAX(CAST(h.eCommerceAction.action_type AS INT64)) AS latest_ecommerce_progress,
+		# behavior on the site
+		IFNULL(totals.bounces, 0) AS bounces,
+		IFNULL(totals.timeOnSite, 0) AS time_on_site,
+		totals.pageviews,
+		# where the visitor came from
+		trafficSource.source,
+		trafficSource.medium,
+		channelGrouping,
+		# mobile or desktop
+		device.deviceCategory,
+		# geographic
+		IFNULL(geoNetwork.country, "") AS country
+	FROM `data-to-insights.ecommerce.web_analytics`,
+		UNNEST(hits) AS h
+	JOIN all_visitor_stats USING(fullvisitorid)
+	WHERE 1=1
+		# only predict for new visits
+		AND totals.newVisits = 1
+		AND date BETWEEN '20160801' AND '20170430' # train 9 months
+	GROUP BY
+		unique_session_id,
+		will_buy_on_return_visit,
+		bounces,
+		time_on_site,
+		totals.pageviews,
+		trafficSource.source,
+		trafficSource.medium,
+		channelGrouping,
+		device.deviceCategory,
+		country
+);</code>
+
+        <p>Let us now evaluate our model and see how we did:</p>
+
+        <code>#standardSQL
+SELECT
+	roc_auc,
+	CASE
+		WHEN roc_auc > .9 THEN 'good'
+		WHEN roc_auc > .8 THEN 'fair'
+		WHEN roc_auc > .7 THEN 'not great'
+		ELSE 'poor'
+	END AS model_quality
+FROM
+	ML.EVALUATE(MODEL ecommerce.classification_model_3, (
+
+	WITH all_visitor_stats AS (
+		SELECT
+			fullvisitorid,
+			IF(COUNTIF(totals.transactions > 0 AND totals.newVisits IS NULL) > 0, 1, 0) AS will_buy_on_return_visit
+		FROM `data-to-insights.ecommerce.web_analytics`
+		GROUP BY fullvisitorid
+	)
+
+	# add in new features
+	SELECT * EXCEPT(unique_session_id) FROM (
+		SELECT
+			CONCAT(fullvisitorid, CAST(visitId AS STRING)) AS unique_session_id,
+			# labels
+			will_buy_on_return_visit,
+			MAX(CAST(h.eCommerceAction.action_type AS INT64)) AS latest_ecommerce_progress,
+			# behavior on the site
+			IFNULL(totals.bounces, 0) AS bounces,
+			IFNULL(totals.timeOnSite, 0) AS time_on_site,
+			totals.pageviews,
+			# where the visitor came from
+			trafficSource.source,
+			trafficSource.medium,
+			channelGrouping,
+			# mobile or desktop
+			device.deviceCategory,
+			# geographic
+			IFNULL(geoNetwork.country, "") AS country
+		FROM `data-to-insights.ecommerce.web_analytics`,
+			UNNEST(hits) AS h
+		JOIN all_visitor_stats USING(fullvisitorid)
+
+  WHERE 1=1
+    # only predict for new visits
+    AND totals.newVisits = 1
+    AND date BETWEEN '20170501' AND '20170630' # eval 2 months
+
+  GROUP BY
+  unique_session_id,
+  will_buy_on_return_visit,
+  bounces,
+  time_on_site,
+  totals.pageviews,
+  trafficSource.source,
+  trafficSource.medium,
+  channelGrouping,
+  device.deviceCategory,
+  country
+)
+));</code>
+
+        <p><strong>Results:</strong> Our roc_auc has increased by about .02 to around <strong>.94</strong>!</p>
+
+        <p><strong>Note:</strong> Your exact values will differ due to the randomness involved in the training process.</p>
+
+        <p>It's a small change in the roc_auc, but note that since 1 is a perfect roc_auc, it gets more difficult to improve the metric the closer to 1 it gets.</p>
+
+        <p>This is a great example of how easy it is in BigQuery ML to try out different model types with different options to see how they perform. We were able to use a much more complex model type by only changing one line of SQL.</p>
+
+        <p>One may reasonably ask "Where did the choices for these options come from?", and the answer is experimentation! When you are trying to find the best model type for your problems, then one has to experiment with different sets of options in a process known as hyperparameter tuning.</p>
+
+        <p>Let's finish up by generating predictions with our improved model and see how they compare to those we generated before. By using a Boosted tree classifier model, you can observe a slight improvement of 0.2 in our ROC AUC compared to the previous model. The query below will predict which new visitors will come back and make a purchase:</p>
+
+        <code>SELECT
+*
+FROM
+  ml.PREDICT(MODEL `ecommerce.classification_model_3`,
+   (
+
+WITH all_visitor_stats AS (
+SELECT
+  fullvisitorid,
+  IF(COUNTIF(totals.transactions > 0 AND totals.newVisits IS NULL) > 0, 1, 0) AS will_buy_on_return_visit
+  FROM `data-to-insights.ecommerce.web_analytics`
+  GROUP BY fullvisitorid
+)
+
+  SELECT
+      CONCAT(fullvisitorid, '-',CAST(visitId AS STRING)) AS unique_session_id,
+
+      # labels
+      will_buy_on_return_visit,
+
+      MAX(CAST(h.eCommerceAction.action_type AS INT64)) AS latest_ecommerce_progress,
+
+      # behavior on the site
+      IFNULL(totals.bounces, 0) AS bounces,
+      IFNULL(totals.timeOnSite, 0) AS time_on_site,
+      totals.pageviews,
+
+      # where the visitor came from
+      trafficSource.source,
+      trafficSource.medium,
+      channelGrouping,
+
+      # mobile or desktop
+      device.deviceCategory,
+
+      # geographic
+      IFNULL(geoNetwork.country, "") AS country
+
+  FROM `data-to-insights.ecommerce.web_analytics`,
+     UNNEST(hits) AS h
+
+    JOIN all_visitor_stats USING(fullvisitorid)
+
+  WHERE
+    # only predict for new visits
+    totals.newVisits = 1
+    AND date BETWEEN '20170701' AND '20170801' # test 1 month
+
+  GROUP BY
+  unique_session_id,
+  will_buy_on_return_visit,
+  bounces,
+  time_on_site,
+  totals.pageviews,
+  trafficSource.source,
+  trafficSource.medium,
+  channelGrouping,
+  device.deviceCategory,
+  country
+)
+
+)
+
+ORDER BY
+  predicted_will_buy_on_return_visit DESC;</code>
+
+        <p>The output now shows a classification model that can better predict the probability that a first-time visitor to the Google Merchandise Store will make a purchase in a later visit. By comparing the result above with the previous model shown in Task 7, you can see the confidence the model has in its predictions is more accurate when compared to the logistic_regression model type.</p>
+    </div>
+
+    <a href="https://deerflow.tech" target="_blank" class="deerflow">✦ Deerflow</a>
+
+    <script>
+        document.querySelectorAll('code').forEach(el => {
+            if (!el.className) {
+                el.className = 'language-sql';
+            }
+        });
+        hljs.highlightAll();
+    </script>
+</body>
+</html>
